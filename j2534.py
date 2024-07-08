@@ -22,10 +22,6 @@ class SConfigList(Structure):
     _fields_ = [('NumOfParams', c_ulong), ('ConfigPtr', POINTER(SConfig))]
 
 
-# class GConfigList(Structure):
-#     _fields_ = [('NumOfParams', c_ulong), ('ConfigPtr', POINTER(GConfig * 50))]
-
-
 class SByteArray(Structure):
     _fields_ = [('BytePtr', c_ubyte * MAX_MSG_DATA_SIZE)]
 
@@ -200,16 +196,16 @@ def pt_read_msg(ChannelID, pMsg, pNumMsgs, Timeout):
     return result
 
 
-def pt_write_msg(channel_id, pMsg, p_num_msgs, timeout):
+def pt_write_msg(channel_id, p_msg, p_num_msgs, timeout):
     p_msg_list = []
     num_msgs = c_ulong(p_num_msgs.value)  # Число сообщений, которые необходимо отправить
-    if pMsg:
-        if type(pMsg[0]) == tuple:
-            for p in pMsg:
+    if p_msg:
+        if isinstance(p_msg[0], tuple):  # Use isinstance for type checking
+            for p in p_msg:
                 msg = create_passthru_msg(p)
                 p_msg_list.append(msg)
         else:
-            msg = create_passthru_msg(pMsg)
+            msg = create_passthru_msg(p_msg)
     else:
         msg = c_void_p(None)
 
@@ -223,20 +219,20 @@ def pt_write_msg(channel_id, pMsg, p_num_msgs, timeout):
     return result
 
 
-def pt_start_msg_filter(ChannelID, FilterType, pMaskMsg, pPatternMsg, pFlowControlMsg, pFilterID):
-    channel_id = c_ulong(ChannelID.value)
-    filter_type = c_ulong(FilterType)
+def pt_start_msg_filter(channel_id, filter_type, p_mask_msg, p_pattern_msg, p_flow_control_msg, p_filter_id):
+    channel_id = c_ulong(channel_id.value)
+    filter_type = c_ulong(filter_type)
     pcontrolmsg = c_ulong(0)
-    if pFlowControlMsg:
-        controlmsg = create_passthru_msg(pFlowControlMsg)
+    if p_flow_control_msg:
+        controlmsg = create_passthru_msg(p_flow_control_msg)
         pcontrolmsg = byref(controlmsg)
-    maskmsg = create_passthru_msg(pMaskMsg)
-    patternmsg = create_passthru_msg(pPatternMsg)
+    maskmsg = create_passthru_msg(p_mask_msg)
+    patternmsg = create_passthru_msg(p_pattern_msg)
     pmaskmsg, ppatternmsg = byref(maskmsg), byref(patternmsg)
-    filter_id_code = c_ulong(pFilterID.value)
+    filter_id_code = c_ulong(p_filter_id.value)
     result = my_dll.PassThruStartMsgFilter(channel_id, filter_type, pmaskmsg, ppatternmsg,
                                            pcontrolmsg, byref(filter_id_code))
-    pFilterID.value = filter_id_code.value
+    p_filter_id.value = filter_id_code.value
     return result
 
 
@@ -245,11 +241,34 @@ def pt_stop_msg_filter(channel_id, filter_id):
     filter_id_code = c_ulong(filter_id.value)
     return my_dll.PassThruStopMsgFilter(channel_id, filter_id_code)
 
+def pt_set_programming_voltage(device_id, pin_number, voltage):
+    """
+    Sets the programming voltage on a specified pin for a device.
 
-def pt_set_programming_voltage(DeviceID, PinNumber, Voltage):
-    voltage = c_ulong(Voltage.value)
-    result = my_dll.PassThruSetProgrammingVoltage(c_ulong(DeviceID.value), c_ulong(PinNumber), voltage)
-    Voltage.value = voltage.value
+    This function controls the voltage level for vehicle programming tasks, such as ECU programming or re-flashing. It is part of the J2534 standard for vehicle diagnostics and reprogramming.
+
+    @param device_id (int): The identifier for the device. Specifies which device should set the programming voltage.
+    @param pin_number (int): The pin number on which to set the voltage. Pin numbers and their capabilities vary depending on the hardware interface.
+    @param voltage (int): The voltage level to set on the specified pin, in millivolts. Acceptable values vary by device; some support a range, others specific levels.
+
+    @return status (int): A status code indicating the result of the operation. 0 indicates success; non-zero indicates an error. Error codes vary by device.
+
+    Example Usage:
+    >>> device_id = 1
+    >>> pin_number = 6
+    >>> voltage = 18000  # 18 Volts
+    >>> status = pt_set_programming_voltage(device_id, pin_number, voltage)
+    >>> if status == 0:
+        print("Voltage successfully set.")
+    else:
+        print("Failed to set voltage.")
+
+    Notes:
+    - Ensure the device and pin support the desired voltage level before calling.
+    - Improper use can damage vehicle electronics. Refer to vehicle service manual and hardware documentation.
+    """    
+    voltage = c_ulong(voltage.value)
+    result = my_dll.PassThruSetProgrammingVoltage(c_ulong(device_id.value), c_ulong(pin_number), voltage)
     return result
 
 
